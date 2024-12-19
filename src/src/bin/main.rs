@@ -39,10 +39,10 @@ fn main() -> ! {
         let _ = match_frames! {
             packet.data,
             deauth = DeauthenticationFrame => {
-                info!("{:?} {} {} {}", deauth.reason, packet.rx_cntl.rssi, packet.rx_cntl.noise_floor, packet.rx_cntl.channel); 
+                info!("reason: {:?}, rssi: {} dBm, noise floor: {} dBm, channel: {}", deauth.reason, packet.rx_cntl.rssi, packet.rx_cntl.noise_floor, packet.rx_cntl.channel); 
             }
             _ = DataFrame => {
-                info!("{} {} {}", packet.rx_cntl.rssi, packet.rx_cntl.noise_floor, packet.rx_cntl.channel); 
+                //info!("{} {} {}", packet.rx_cntl.rssi, packet.rx_cntl.noise_floor, packet.rx_cntl.channel); 
             }
         };
     });
