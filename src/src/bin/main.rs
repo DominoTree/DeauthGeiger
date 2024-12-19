@@ -17,7 +17,7 @@ fn main() -> ! {
     config.cpu_clock = CpuClock::max();
     let peripherals = esp_hal::init(config);
 
-    esp_alloc::heap_allocator!(72 * 1024);
+    esp_alloc::heap_allocator!(144 * 1024);
 
     let timg0 = TimerGroup::new(peripherals.TIMG0);
     let init = init(
@@ -39,7 +39,7 @@ fn main() -> ! {
         let _ = match_frames! {
             packet.data,
             deauth = DeauthenticationFrame => {
-                info!("reason: {:?}, rssi: {} dBm, noise floor: {} dBm, channel: {}", deauth.reason, packet.rx_cntl.rssi, packet.rx_cntl.noise_floor, packet.rx_cntl.channel); 
+                info!("deauth reason: {:?}, rssi: {} dBm, noise floor: {} dBm, channel: {}", deauth.reason, packet.rx_cntl.rssi, packet.rx_cntl.noise_floor, packet.rx_cntl.channel);
             }
             _ = DataFrame => {
                 //info!("{} {} {}", packet.rx_cntl.rssi, packet.rx_cntl.noise_floor, packet.rx_cntl.channel); 
