@@ -1,55 +1,70 @@
+//! WiFi sniffer example
+//!
+//! Sniffs for beacon frames.
+//!
+
+//% FEATURES: esp-wifi esp-wifi/wifi esp-wifi/utils esp-wifi/sniffer esp-hal/unstable
+//% CHIPS: esp32 esp32s2 esp32s3 esp32c2 esp32c3 esp32c6
+
 #![no_std]
 #![no_main]
 
-use core::time::Duration;
-
-use esp_backtrace as _;
-use esp_hal::prelude::*;
-use esp_hal::timer::timg::TimerGroup;
-use esp_hal::{delay::Delay, time::Duration};
-
-use esp_wifi::wifi::{ScanConfig, ScanTypeConfig};
-use log::info;
-
 extern crate alloc;
+
+use alloc::{
+    collections::btree_set::BTreeSet,
+    string::{String, ToString},
+};
+use core::cell::RefCell;
+
+use critical_section::Mutex;
+use esp_backtrace as _;
+use esp_hal::{prelude::*, rng::Rng, timer::timg::TimerGroup};
+use esp_wifi::{init, wifi};
+use ieee80211::{match_frames, mgmt_frame::BeaconFrame};
+
+static KNOWN_SSIDS: Mutex<RefCell<BTreeSet<String>>> = Mutex::new(RefCell::new(BTreeSet::new()));
 
 #[entry]
 fn main() -> ! {
-    let peripherals = esp_hal::init({
-        let mut config = esp_hal::Config::default();
-        config.cpu_clock = CpuClock::max();
-        config
-    });
-
     esp_println::logger::init_logger_from_env();
+    let mut config = esp_hal::Config::default();
+    config.cpu_clock = CpuClock::max();
+    let peripherals = esp_hal::init(config);
 
     esp_alloc::heap_allocator!(72 * 1024);
 
     let timg0 = TimerGroup::new(peripherals.TIMG0);
-    let wifi_init = esp_wifi::init(
+    let init = init(
         timg0.timer0,
-        esp_hal::rng::Rng::new(peripherals.RNG),
+        Rng::new(peripherals.RNG),
         peripherals.RADIO_CLK,
     )
     .unwrap();
 
-    let wifi_config = ScanConfig {
-        ssid: None,
-        bssid: None,
-        channel: Some(0),
-        scan_type: ScanTypeConfig::Passive(Duration::new(0, 10000)),
-        show_hidden: true,
-    };
+    let wifi = peripherals.WIFI;
 
-    let (wifi_device, mut wifi_controller): (WifiDevice<WifiStaDevice>, _) =
-        wifi::new_with_config(&wifi_init, peripherals.WIFI, wifi_config).unwrap();
-    wifi_controller.start().unwrap();
+    // We must initialize some kind of interface and start it.
+    let (_, mut controller) = wifi::new_with_mode(&init, wifi, wifi::WifiApDevice).unwrap();
+    controller.start().unwrap();
 
-    let delay = Delay::new();
-    loop {
-        info!("Hello world!");
-        delay.delay(500.millis());
-    }
+    let mut sniffer = controller.take_sniffer().unwrap();
+    sniffer.set_promiscuous_mode(true).unwrap();
+    sniffer.set_receive_cb(|packet| {
+        let _ = match_frames! {
+            packet.data,
+            beacon = BeaconFrame => {
+                let Some(ssid) = beacon.ssid() else {
+                    return;
+                };
+                if critical_section::with(|cs| {
+                    KNOWN_SSIDS.borrow_ref_mut(cs).insert(ssid.to_string())
+                }) {
+                    esp_println::println!("Found new AP with SSID: {ssid}");
+                }
+            }
+        };
+    });
 
-    // for inspiration have a look at the examples at https://github.com/esp-rs/esp-hal/tree/v0.22.0/examples/src/bin
+    loop {}
 }
