@@ -1,29 +1,12 @@
-//! WiFi sniffer example
-//!
-//! Sniffs for beacon frames.
-//!
-
-//% FEATURES: esp-wifi esp-wifi/wifi esp-wifi/utils esp-wifi/sniffer esp-hal/unstable
-//% CHIPS: esp32 esp32s2 esp32s3 esp32c2 esp32c3 esp32c6
-
 #![no_std]
 #![no_main]
 
 extern crate alloc;
 
-use alloc::{
-    collections::btree_set::BTreeSet,
-    string::{String, ToString},
-};
-use core::cell::RefCell;
-
-use critical_section::Mutex;
 use esp_backtrace as _;
 use esp_hal::{prelude::*, rng::Rng, timer::timg::TimerGroup};
 use esp_wifi::{init, wifi};
-use ieee80211::{match_frames, mgmt_frame::BeaconFrame};
-
-static KNOWN_SSIDS: Mutex<RefCell<BTreeSet<String>>> = Mutex::new(RefCell::new(BTreeSet::new()));
+use ieee80211::{data_frame::DataFrame, match_frames, mgmt_frame::DeauthenticationFrame};
 
 #[entry]
 fn main() -> ! {
@@ -53,16 +36,10 @@ fn main() -> ! {
     sniffer.set_receive_cb(|packet| {
         let _ = match_frames! {
             packet.data,
-            beacon = BeaconFrame => {
-                let Some(ssid) = beacon.ssid() else {
-                    return;
-                };
-                if critical_section::with(|cs| {
-                    KNOWN_SSIDS.borrow_ref_mut(cs).insert(ssid.to_string())
-                }) {
-                    esp_println::println!("Found new AP with SSID: {ssid}");
-                }
+            deauth = DeauthenticationFrame => {
+                esp_println::println!("{:?} {} {} {}", deauth.reason, packet.rx_cntl.rssi, packet.rx_cntl.noise_floor, packet.rx_cntl.channel); 
             }
+            _ = DataFrame => {}
         };
     });
 
