@@ -5,6 +5,7 @@ extern crate alloc;
 
 use esp_backtrace as _;
 use esp_hal::delay::Delay;
+use esp_hal::gpio::Output;
 use esp_hal::{prelude::*, rng::Rng, timer::timg::TimerGroup};
 use esp_wifi::{init, wifi};
 use ieee80211::{data_frame::DataFrame, match_frames, mgmt_frame::DeauthenticationFrame};
@@ -26,6 +27,8 @@ fn main() -> ! {
         peripherals.RADIO_CLK,
     )
     .unwrap();
+
+    let mut led = Output::new(peripherals.GPIO7, esp_hal::gpio::Level::Low);
 
     let wifi = peripherals.WIFI;
 
@@ -64,6 +67,7 @@ fn main() -> ! {
         channel += 1;
         config.as_ap_conf_mut().channel = channel;
         controller.set_configuration(&config).unwrap();
+        led.toggle();
         delay.delay(1000.millis());
     }
 }
