@@ -4,9 +4,11 @@
 extern crate alloc;
 
 use esp_backtrace as _;
+use esp_hal::delay::Delay;
 use esp_hal::{prelude::*, rng::Rng, timer::timg::TimerGroup};
 use esp_wifi::{init, wifi};
 use ieee80211::{data_frame::DataFrame, match_frames, mgmt_frame::DeauthenticationFrame};
+use log::info;
 
 #[entry]
 fn main() -> ! {
@@ -37,11 +39,19 @@ fn main() -> ! {
         let _ = match_frames! {
             packet.data,
             deauth = DeauthenticationFrame => {
-                esp_println::println!("{:?} {} {} {}", deauth.reason, packet.rx_cntl.rssi, packet.rx_cntl.noise_floor, packet.rx_cntl.channel); 
+                info!("{:?} {} {} {}", deauth.reason, packet.rx_cntl.rssi, packet.rx_cntl.noise_floor, packet.rx_cntl.channel); 
             }
-            _ = DataFrame => {}
+            _ = DataFrame => {
+                info!("{} {} {}", packet.rx_cntl.rssi, packet.rx_cntl.noise_floor, packet.rx_cntl.channel); 
+            }
         };
     });
 
-    loop {}
+    let delay = Delay::new();
+    loop {
+        delay.delay(5000.millis());
+        let mut config = controller.configuration().unwrap();
+        config.as_ap_conf_mut().channel = 12;
+        controller.set_configuration(&config).unwrap();
+    }
 }
