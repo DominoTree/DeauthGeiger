@@ -1,10 +1,14 @@
 #![no_std]
 #![no_main]
 
+use core::time::Duration;
+
 use esp_backtrace as _;
-use esp_hal::delay::Delay;
 use esp_hal::prelude::*;
 use esp_hal::timer::timg::TimerGroup;
+use esp_hal::{delay::Delay, time::Duration};
+
+use esp_wifi::wifi::{ScanConfig, ScanTypeConfig};
 use log::info;
 
 extern crate alloc;
@@ -22,12 +26,24 @@ fn main() -> ! {
     esp_alloc::heap_allocator!(72 * 1024);
 
     let timg0 = TimerGroup::new(peripherals.TIMG0);
-    let _init = esp_wifi::init(
+    let wifi_init = esp_wifi::init(
         timg0.timer0,
         esp_hal::rng::Rng::new(peripherals.RNG),
         peripherals.RADIO_CLK,
     )
     .unwrap();
+
+    let wifi_config = ScanConfig {
+        ssid: None,
+        bssid: None,
+        channel: Some(0),
+        scan_type: ScanTypeConfig::Passive(Duration::new(0, 10000)),
+        show_hidden: true,
+    };
+
+    let (wifi_device, mut wifi_controller): (WifiDevice<WifiStaDevice>, _) =
+        wifi::new_with_config(&wifi_init, peripherals.WIFI, wifi_config).unwrap();
+    wifi_controller.start().unwrap();
 
     let delay = Delay::new();
     loop {
