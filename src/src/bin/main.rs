@@ -49,9 +49,14 @@ fn main() -> ! {
 
     let delay = Delay::new();
     loop {
-        delay.delay(5000.millis());
         let mut config = controller.configuration().unwrap();
-        config.as_ap_conf_mut().channel = 12;
+        let mut channel = config.as_ap_conf_mut().channel;
+        if channel > 11 {
+            channel = 0;
+        }
+        channel += 1;
+        config.as_ap_conf_mut().channel = channel;
         controller.set_configuration(&config).unwrap();
+        delay.delay(1000.millis());
     }
 }
